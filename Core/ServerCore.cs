@@ -13,16 +13,14 @@ namespace Cluster_Procesamiento.Core
     public  class ServerCore
     {
         private readonly static ServerCore _instance = new ServerCore();
-        private string? _serverIP;
-        
-        private int _maxConnections;
-        private TcpListener? _server;
+
         private List<Connection> _connections = new List<Connection>();
+        private TcpClient _client = new TcpClient();
+        private Connection _connection = new Connection();
+        private Connection _localConnection = new Connection();
 
-        // datos conexiones 
-        private TcpClient? _client;
-        private Connection _newConnection = new Connection();
-
+        private string? _serverIP;
+        private int _maxConnections;
         private bool _isRunning = false;
 
         private const int _SERVERPORT = 6969;
@@ -39,51 +37,64 @@ namespace Cluster_Procesamiento.Core
 
 
         // PARA INICIAR SERVIDOR
-        public async void InitializeLocalServer(string ip)
+        public void InitializeLocalServer(string ip)
         {
             _serverIP = ip;
 
-
-            _server = new TcpListener(IPAddress.Parse(_serverIP), _SERVERPORT);
-            _server.Start(1);
-
-            Console.WriteLine($"Server listo y esperando en: {_serverIP}:{_SERVERPORT}");
-
-            while (true)
+            try
             {
-                _client = await _server.AcceptTcpClientAsync();
-                // guardamos la conexión con sus datos
+                var entry = Dns.GetHostEntry(Dns.GetHostName());
+                var ips = new List<string>();
 
-                _newConnection = new Connection();
-                _newConnection.Stream = _client.GetStream();
-                _newConnection.StreamWriter = new StreamWriter(_newConnection.Stream); // stream para enviar
-                _newConnection.StreamReader = new StreamReader(_newConnection.Stream); // stream para recibir
+                foreach (IPAddress ipvalue in entry.AddressList)
+                    if (ipvalue.AddressFamily == AddressFamily.InterNetwork)
+                        ips.Add(ipvalue.ToString());
+
+                var localEndPoint = new IPEndPoint(IPAddress.Parse(ips[0]), 0);
+
+                _localConnection.Port = 0;
+                _localConnection.IpAddress = localEndPoint.Address.ToString();
+
+                _client.Connect(_serverIP, _SERVERPORT);
+
+                if (_client.Connected) Console.WriteLine($"Server listo y esperando en: {_serverIP}:{_SERVERPORT}");
+
+                var message = new Message();
+                message.Type = MessageType.Processor;
+                message.Content = JsonConvert.SerializeObject(_localConnection);
 
 
-                // confirmamos el nombre
+                _connection = new Connection();
+                _connection.Stream = _client.GetStream();
+                _connection.StreamWriter = new StreamWriter(_connection.Stream); // stream para enviar
+                _connection.StreamReader = new StreamReader(_connection.Stream); // stream para recibir
 
-                var dataReceived = _newConnection.StreamReader!.ReadLine();
-                var message = JsonConvert.DeserializeObject<Message>(dataReceived!);
+                _connection.StreamWriter.WriteLine(JsonConvert.SerializeObject(message));
+                _connection.StreamWriter.Flush();
 
-                Thread thread = new Thread(ListenToConnection);
+                Thread thread = new Thread(ListenToServer);
                 thread.Start();
 
+
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
             }
         }
 
-        public async void ListenToConnection()
+        private void ListenToServer()
         {
+            Connection connection = _connection;
 
-            Connection connection = _newConnection;
-            var connectionOpen = true;
-
-            while (connectionOpen)
+            while (_client.Connected)
             {
                 try
                 {
-
-                    var dataReceived = await connection.StreamReader!.ReadLineAsync();
+                    var dataReceived = connection.StreamReader!.ReadLine();
                     var message = JsonConvert.DeserializeObject<Message>(dataReceived!);
+
+                    
 
                     if (message!.Type == MessageType.Processor)
                     {
@@ -93,21 +104,16 @@ namespace Cluster_Procesamiento.Core
                 catch
                 {
 
-                    // Desconexion
 
-                    
-
-                    connectionOpen = false;
                 }
             }
         }
-
 
         public void StopServer()
         {
             if (_isRunning)
             {
-                _server!.Stop();
+                _client!.Close();
                 _isRunning = false;
             }
         }
