@@ -29,7 +29,7 @@ namespace Cluster_Procesamiento.Core
 
 		private Dictionary<(int, int), List<byte[]>> _processedImages = new Dictionary<(int, int), List<byte[]>>();
 
-		private ServerCore()
+        private ServerCore()
         {
             _serverIP = "";
         }
@@ -87,21 +87,21 @@ namespace Cluster_Procesamiento.Core
             }
         }
 
-		private void ListenToServer()
-		{
-			Connection connection = _connection;
+        private void ListenToServer()
+        {
+            Connection connection = _connection;
 
-			while (_client.Connected)
-			{
-				try
-				{
-					var dataReceived = connection.StreamReader!.ReadLine();
-					var message = JsonConvert.DeserializeObject<Message>(dataReceived!);
+            while (_client.Connected)
+            {
+                try
+                {
+                    var dataReceived = connection.StreamReader!.ReadLine();
+                    var message = JsonConvert.DeserializeObject<Message>(dataReceived!);
 
 					if (message!.Type == MessageType.Data)
 					{
 						var jsonContent = message.Content as string;
-
+                    
 						message = null;
 						GC.Collect();
 
@@ -128,9 +128,9 @@ namespace Cluster_Procesamiento.Core
 						if (!_processedImages.ContainsKey(data.Range))
 						{
 							_processedImages[data.Range] = new List<byte[]>();
-						}
+                    }
 						_processedImages[data.Range].Add(grayscaleFrame);
-					}
+                }
 					else if (message.Type == MessageType.EndOfData)
 					{
 						var orderedImages = _processedImages.OrderBy(pair => pair.Key.Item1)
@@ -145,7 +145,7 @@ namespace Cluster_Procesamiento.Core
 							var jsonContent = JsonConvert.SerializeObject(image);
 
 							FramesData frameData = new FramesData
-							{
+                {
 								Range = range,
 								Content = jsonContent
 							};
@@ -164,12 +164,12 @@ namespace Cluster_Procesamiento.Core
 				catch (Exception ex)
 				{
 					// Handle exception
-				}
+                }
 
-			}
-		}
+            }
+        }
 
-		public void StopServer()
+        public void StopServer()
         {
             if (_isRunning)
             {
