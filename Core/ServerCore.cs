@@ -9,6 +9,7 @@ using Cluster_Procesamiento.Models;
 using Newtonsoft.Json;
 using static System.Net.Mime.MediaTypeNames;
 using System.Drawing;
+using Newtonsoft.Json.Linq;
 
 namespace Cluster_Procesamiento.Core
 {
@@ -91,31 +92,18 @@ namespace Cluster_Procesamiento.Core
         {
             Connection connection = _connection;
 
-            while (_client.Connected)
-            {
-                try
-                {
-                    var dataReceived = connection.StreamReader!.ReadLine();
-                    var message = JsonConvert.DeserializeObject<Message>(dataReceived!);
+			while (_client.Connected)
+			{
+				try
+				{
+					var dataReceived = connection.StreamReader!.ReadLine();
+					var message = JsonConvert.DeserializeObject<Message>(dataReceived!);
 
 					if (message!.Type == MessageType.Data)
 					{
-						var jsonContent = message.Content as string;
-                    
-						message = null;
-						GC.Collect();
+						var data = JsonConvert.DeserializeObject<FramesData>(message.Content.ToString());
 
-						var data = JsonConvert.DeserializeObject<FramesData>(jsonContent!);
-
-						message = new Message();
-						jsonContent = "";
-
-						jsonContent = data!.Content as string;
-
-						data.Content = null;
-						GC.Collect();
-
-						var processedFrame = JsonConvert.DeserializeObject<byte[]>(jsonContent!);
+						var processedFrame = Encoding.ASCII.GetBytes(data.Content.ToString());
 
 						using var image = SixLabors.ImageSharp.Image.Load(processedFrame);
 
@@ -128,11 +116,13 @@ namespace Cluster_Procesamiento.Core
 						if (!_processedImages.ContainsKey(data.Range))
 						{
 							_processedImages[data.Range] = new List<byte[]>();
-                    }
+						}
 						_processedImages[data.Range].Add(grayscaleFrame);
-                }
+					}
 					else if (message.Type == MessageType.EndOfData)
 					{
+						Console.WriteLine($"Contenido recibido, procesando {_processedImages.Count} imagenes.");
+
 						var orderedImages = _processedImages.OrderBy(pair => pair.Key.Item1)
 									.SelectMany(pair => pair.Value)
 									.ToList();
@@ -142,31 +132,30 @@ namespace Cluster_Procesamiento.Core
 							var image = orderedImages[i];
 							var range = _processedImages.First(pair => pair.Value.Contains(image)).Key;
 
-							var jsonContent = JsonConvert.SerializeObject(image);
-
 							FramesData frameData = new FramesData
-                {
+							{
 								Range = range,
-								Content = jsonContent
+								Content = Encoding.ASCII.GetString(image)
 							};
 
-							message.Content = JsonConvert.SerializeObject(frameData);
+							message.Content = frameData;
 							message.Type = MessageType.ProcessedData;
 
 							connection.StreamWriter!.WriteLine(JsonConvert.SerializeObject(message));
 							connection.StreamWriter!.Flush();
 						}
 
-						connection.StreamWriter!.WriteLine(JsonConvert.SerializeObject(new Message() { Type = MessageType.EndOfData, Content = "Se ha procesado todo el contenido."}));
+						Console.WriteLine("El contenido se ha procesado. Enviando de vuelta.");
+						connection.StreamWriter!.WriteLine(JsonConvert.SerializeObject(new Message() { Type = MessageType.EndOfData, Content = "Se ha procesado todo el contenido." }));
 						connection.StreamWriter!.Flush();
+
 					}
 				}
 				catch (Exception ex)
 				{
 					// Handle exception
-                }
-
-            }
+				}
+			}
         }
 
         public void StopServer()

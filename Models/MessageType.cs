@@ -14,6 +14,6 @@ namespace Cluster_Procesamiento.Models
         ProcessedData,
         Status,
         Turn,
-		EndOfData
-    }
+		EndOfData,
+	}
 }
