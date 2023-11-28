@@ -96,6 +96,8 @@ namespace Cluster_Procesamiento.Core
 			{
 				try
 				{
+					GC.Collect();
+
 					var dataReceived = connection.StreamReader!.ReadLine();
 					var message = JsonConvert.DeserializeObject<Message>(dataReceived!);
 
@@ -143,11 +145,18 @@ namespace Cluster_Procesamiento.Core
 
 							connection.StreamWriter!.WriteLine(JsonConvert.SerializeObject(message));
 							connection.StreamWriter!.Flush();
+
+							GC.Collect();
 						}
+
+						orderedImages = null;
+						_processedImages.Clear();
 
 						Console.WriteLine("El contenido se ha procesado. Enviando de vuelta.");
 						connection.StreamWriter!.WriteLine(JsonConvert.SerializeObject(new Message() { Type = MessageType.EndOfData, Content = "Se ha procesado todo el contenido." }));
 						connection.StreamWriter!.Flush();
+
+						GC.Collect();
 
 					}
 				}
