@@ -145,8 +145,6 @@ namespace Cluster_Procesamiento.Core
 
 							connection.StreamWriter!.WriteLine(JsonConvert.SerializeObject(message));
 							connection.StreamWriter!.Flush();
-
-							GC.Collect();
 						}
 
 						orderedImages = null;
@@ -162,7 +160,8 @@ namespace Cluster_Procesamiento.Core
 				}
 				catch (Exception ex)
 				{
-					// Handle exception
+					Console.WriteLine("Se ha perdido la conexión al servidor.");
+					Console.WriteLine("Saliendo y liberando recursos.");
 				}
 			}
         }
